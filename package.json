@@ -2,8 +2,11 @@
   "name": "bynder-hackathon-03",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "keywords": [],
   "author": "",
@@ -11,6 +14,12 @@
   "description": "",
   "dependencies": {
     "@bynder/bynder-js-sdk": "^2.5.0",
-    "express": "^5.1.0"
+    "dotenv": "^16.4.1",
+    "express": "^5.1.0",
+    "fs-extra": "^11.3.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
   }
 }
