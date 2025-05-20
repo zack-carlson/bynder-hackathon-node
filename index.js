@@ -13,6 +13,7 @@ const __dirname = dirname(__filename);
 // Import routes
 // import productRoutes from './routes/productRoutes.js';
 import mediaRoutes from './routes/mediaRoutes.js';
+import routesRoutes from './routes/routesRoutes.js';
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'output');
@@ -106,6 +107,7 @@ app.get('/', (req, res) => {
 // Register API routes
 // app.use('/api/products', productRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/routes', routesRoutes);
 
 // 404 middleware - handle routes that don't exist
 app.use(notFoundHandler);

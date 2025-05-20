@@ -1,4 +1,5 @@
 import { successResponse, errorResponse, paginationMeta } from '../utils/responseUtils.js';
+import { Buffer } from 'buffer';
 import XLSX from 'xlsx';
 import fs from 'fs-extra';
 import path from 'path';
@@ -359,8 +360,8 @@ export const getMediaList = (bynderInstance) => {
   return async (req, res) => {
     try {
       // Extract query parameters with defaults
-      const {
-        limit = 100,
+      const { 
+        limit = 100, 
         page = 1,
         sortBy = 'dateCreated',
         sortOrder = 'desc'
@@ -455,8 +456,8 @@ export const getMediaById = (bynderInstance) => {
         
         const statusCode = apiError.status || 500;
         const errorCode = statusCode === 404 ? 'MEDIA_NOT_FOUND' : 'BYNDER_API_ERROR';
-        const message = statusCode === 404
-          ? `Media item with ID ${id} not found`
+        const message = statusCode === 404 
+          ? `Media item with ID ${id} not found` 
           : apiError.message || 'Error retrieving media from Bynder';
           
         const { response } = errorResponse(message, errorCode, statusCode, apiError);
@@ -474,3 +475,221 @@ export const getMediaById = (bynderInstance) => {
     }
   };
 };
+
+/**
+ * Export meta-properties and their options to XLSX
+ * @param {Object} bynderInstance - Initialized Bynder SDK instance
+ * @returns {Function} Express middleware function
+ */
+export const exportMetaProperties = (bynderInstance) => {
+  return async (req, res) => {
+    try {
+      // Extract domain from the base URL and slugify it for the filename
+      const bynderDomain = process.env.BYNDER_DOMAIN || 'default';
+      const instanceSlug = slugifyDomain(bynderDomain);
+      
+      // Format: <<export-type>>-<<instance>>-<<timestamp>>.xlsx
+      const defaultFilename = `meta-properties-${instanceSlug}-${Date.now()}.xlsx`;
+      
+      const { filename = defaultFilename } = req.query;
+
+      // Log the export request
+      console.log(`Starting meta-properties export`);
+
+      // Check if Bynder instance is available
+      if (!bynderInstance) {
+        throw new Error('Bynder SDK not initialized correctly');
+      }
+
+      // Fetch all media from Bynder to extract meta-properties
+      console.log('Fetching media to extract meta-properties...');
+      const mediaItems = await getAllMediaItems(bynderInstance, 100); // Limit to 100 items for faster processing
+      
+      if (mediaItems.length === 0) {
+        return res.status(404).json(
+          successResponse(null, 'No media items found to extract meta-properties')
+        );
+      }
+
+      // Extract and organize meta-properties
+      console.log('Extracting meta-properties...');
+      const { properties, propertyOptions } = extractMetaProperties(mediaItems);
+      
+      // Convert to XLSX and save file
+      console.log('Converting to XLSX format...');
+      const filePath = await createMetaPropertiesXLSX(properties, propertyOptions, filename);
+      console.log(`XLSX file created at: ${filePath}`);
+
+      // Generate download URL
+      const downloadUrl = `/api/media/download/${path.basename(filePath)}`;
+
+      // Return success with download URL
+      return res.status(200).json(
+        successResponse({
+          propertiesCount: Object.keys(properties).length,
+          optionsCount: Object.keys(propertyOptions).length,
+          downloadUrl: downloadUrl,
+          filename: path.basename(filePath)
+        }, 'Meta-properties export completed successfully')
+      );
+    } catch (error) {
+      console.error('Error exporting meta-properties:', error);
+      const { response, statusCode } = errorResponse(
+        error.message || 'Failed to export meta-property data',
+        'META_PROPERTY_EXPORT_ERROR',
+        500,
+        error
+      );
+      return res.status(statusCode).json(response);
+    }
+  };
+};
+
+/**
+ * Extract meta-properties and their options from media items
+ * @param {Array} mediaItems - Array of media items from Bynder
+ * @returns {Object} Object containing properties and propertyOptions
+ */
+function extractMetaProperties(mediaItems) {
+  // Store properties and their values
+  const properties = {};
+  // Store property options with parent IDs
+  const propertyOptions = {};
+
+  // Process each media item
+  mediaItems.forEach(item => {
+    // Find all property_ fields
+    Object.keys(item).forEach(key => {
+      if (key.startsWith('property_')) {
+        const propertyName = key;
+        const propertyValue = item[key];
+        
+        // Initialize property if not exists
+        if (!properties[propertyName]) {
+          properties[propertyName] = {
+            id: propertyName,
+            name: propertyName.replace('property_', '').replace(/_/g, ' '),
+            values: new Set()
+          };
+        }
+        
+        // Add values
+        if (Array.isArray(propertyValue)) {
+          propertyValue.forEach(val => {
+            if (val !== null && val !== undefined) {
+              // If value is an object, it's likely an option with ID and label
+              if (typeof val === 'object') {
+                properties[propertyName].values.add(val.label || JSON.stringify(val));
+                
+                // Store option with parent ID
+                const optionId = val.id || JSON.stringify(val);
+                propertyOptions[optionId] = {
+                  id: optionId,
+                  label: val.label || JSON.stringify(val),
+                  parentProperty: propertyName
+                };
+              } else {
+                properties[propertyName].values.add(val);
+              }
+            }
+          });
+        } else if (propertyValue !== null && propertyValue !== undefined) {
+          // Handle non-array values
+          if (typeof propertyValue === 'object') {
+            properties[propertyName].values.add(propertyValue.label || JSON.stringify(propertyValue));
+            
+            // Store option with parent ID
+            const optionId = propertyValue.id || JSON.stringify(propertyValue);
+            propertyOptions[optionId] = {
+              id: optionId,
+              label: propertyValue.label || JSON.stringify(propertyValue),
+              parentProperty: propertyName
+            };
+          } else {
+            properties[propertyName].values.add(propertyValue);
+          }
+        }
+      }
+    });
+  });
+
+  // Convert Sets to Arrays for easier processing
+  Object.keys(properties).forEach(key => {
+    properties[key].values = Array.from(properties[key].values);
+  });
+
+  return { properties, propertyOptions };
+}
+
+/**
+ * Create XLSX file for meta-properties and options
+ * @param {Object} properties - Object of properties
+ * @param {Object} propertyOptions - Object of property options
+ * @param {String} filename - Output filename
+ * @returns {Promise<String>} Path to the created file
+ */
+async function createMetaPropertiesXLSX(properties, propertyOptions, filename) {
+  try {
+    // Transform properties to tabular format
+    const propertiesData = Object.values(properties).map(property => {
+      return {
+        'ID': property.id || '',
+        'Name': property.name || '',
+        'Values': property.values.join(', ')
+      };
+    });
+    
+    // Transform options to tabular format
+    const optionsData = Object.values(propertyOptions).map(option => {
+      return {
+        'ID': option.id || '',
+        'Label': option.label || '',
+        'Parent Property': option.parentProperty || ''
+      };
+    });
+    
+    // Create workbook with two sheets
+    const workbook = XLSX.utils.book_new();
+    
+    // Add properties sheet
+    const propertiesSheet = XLSX.utils.json_to_sheet(propertiesData);
+    XLSX.utils.book_append_sheet(workbook, propertiesSheet, 'Meta Properties');
+    
+    // Auto-size columns for properties sheet
+    const propColWidths = propertiesData.reduce((acc, row) => {
+      Object.keys(row).forEach(key => {
+        const cellValue = String(row[key]);
+        acc[key] = Math.max(acc[key] || 0, cellValue.length);
+      });
+      return acc;
+    }, {});
+    
+    propertiesSheet['!cols'] = Object.keys(propColWidths).map(key => ({ wch: Math.min(propColWidths[key] + 2, 50) }));
+    
+    // Add options sheet
+    const optionsSheet = XLSX.utils.json_to_sheet(optionsData);
+    XLSX.utils.book_append_sheet(workbook, optionsSheet, 'Property Options');
+    
+    // Auto-size columns for options sheet
+    const optColWidths = optionsData.reduce((acc, row) => {
+      Object.keys(row).forEach(key => {
+        const cellValue = String(row[key]);
+        acc[key] = Math.max(acc[key] || 0, cellValue.length);
+      });
+      return acc;
+    }, {});
+    
+    optionsSheet['!cols'] = Object.keys(optColWidths).map(key => ({ wch: Math.min(optColWidths[key] + 2, 50) }));
+    
+    // Create the file path
+    const filePath = path.join(uploadsDir, filename);
+    
+    // Write to file
+    XLSX.writeFile(workbook, filePath);
+    
+    return filePath;
+  } catch (error) {
+    console.error('Error creating meta-properties XLSX file:', error);
+    throw error;
+  }
+}

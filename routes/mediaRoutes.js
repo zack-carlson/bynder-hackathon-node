@@ -1,5 +1,5 @@
 import express from 'express';
-import { createMediaExporter, downloadExportedFile, getMediaList, getMediaById } from '../controllers/mediaController.js';
+import { createMediaExporter, downloadExportedFile, getMediaList, getMediaById, exportMetaProperties } from '../controllers/mediaController.js';
 
 const router = express.Router();
 
@@ -50,6 +50,28 @@ router.get('/list', (req, res, next) => {
 }, (req, res) => {
   const bynderInstance = req.app.locals.bynder;
   return getMediaList(bynderInstance)(req, res);
+});
+
+/**
+ * @route   GET /api/media/:id
+ * @desc    Get a single media item by ID
+ * @access  Public
+ * @param   {string} id - Bynder media ID
+ * @returns {Object} JSON response with media item details
+ */
+/**
+ * @route   GET /api/media/exportMetaProperties
+ * @desc    Export all meta-properties and their options to XLSX file
+ * @access  Public
+ * @query   {string} filename - Custom filename for the export
+ * @returns {Object} Response with download URL
+ */
+router.get('/exportMetaProperties', (req, res, next) => {
+  req.setTimeout(120000); // Set 2min timeout for potentially long-running exports
+  next();
+}, (req, res) => {
+  const bynderInstance = req.app.locals.bynder;
+  return exportMetaProperties(bynderInstance)(req, res);
 });
 
 /**
