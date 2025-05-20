@@ -1,0 +1,16 @@
+{
+  "name": "bynder-hackathon-03",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@bynder/bynder-js-sdk": "^2.5.0",
+    "express": "^5.1.0"
+  }
+}
