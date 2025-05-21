@@ -125,12 +125,8 @@ export const downloadExportedFile = (req, res) => {
  * @param {Number} limit - Max number of items to fetch
  * @returns {Promise<Array>} Array of media items
  */
-async function getAllMediaItems(bynder, limit) {
+async function getAllMediaItems(bynder, limit, queryParams) {
   try {
-    // For testing without actual API access, return mock data
-    if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-      return generateMockData(Math.min(limit, 100));
-    }
     
     const allMedia = [];
     let page = 1;
@@ -138,11 +134,13 @@ async function getAllMediaItems(bynder, limit) {
     const pageSize = 100; // Max page size for Bynder API
     
     while (hasMoreItems && allMedia.length < limit) {
-      const query = {
+      let query = {
         page,
         limit: Math.min(pageSize, limit - allMedia.length),
         total: 0 // Set to 0 to avoid counting total (faster)
       };
+      // merge params.
+      query = {...query, ...queryParams}
       
       console.log(`Fetching page ${page} with limit ${query.limit}...`);
       
@@ -360,15 +358,81 @@ export const getMediaList = (bynderInstance) => {
   return async (req, res) => {
     try {
       // Extract query parameters with defaults
-      const { 
-        limit = 100, 
+      const {
+        limit = 100,
         page = 1,
         sortBy = 'dateCreated',
-        sortOrder = 'desc'
+        sortOrder = 'desc',
+        orientation,
+        dateModifiedOn,
+        dateCreatedOn,
+        ids,
+        categoryId,
+        brandId,
+        type,
+        limited,
+        isPublic
       } = req.query;
 
       const limitValue = Math.min(parseInt(limit), 1000); // Cap maximum limit
       const pageValue = parseInt(page);
+
+      // Create query parameters object for Bynder API
+      const queryParams = {};
+      
+      // Add filters if provided
+      if (orientation) {
+        console.log(`Filtering by orientation: ${orientation}`);
+        queryParams.orientation = orientation;
+      }
+      
+      if (dateModifiedOn) {
+        console.log(`Filtering by dateModifiedOn: ${dateModifiedOn}`);
+        queryParams.dateModifiedOn = dateModifiedOn;
+      }
+      
+      if (dateCreatedOn) {
+        console.log(`Filtering by dateCreatedOn: ${dateCreatedOn}`);
+        queryParams.dateCreatedOn = dateCreatedOn;
+      }
+      
+      if (ids) {
+        console.log(`Filtering by ids: ${ids}`);
+        queryParams.ids = ids; // Comma-separated list of IDs
+      }
+      
+      if (categoryId) {
+        console.log(`Filtering by categoryId: ${categoryId}`);
+        queryParams.categoryId = categoryId;
+      }
+      
+      if (brandId) {
+        console.log(`Filtering by brandId: ${brandId}`);
+        queryParams.brandId = brandId;
+      }
+      
+      if (type) {
+        console.log(`Filtering by type: ${type}`);
+        queryParams.type = type; // image, video, document, audio, 3d
+      }
+      
+      if (limited !== undefined) {
+        console.log(`Filtering by limited: ${limited}`);
+        queryParams.limited = limited === 'true' || limited === '1' ? true : false;
+      }
+      
+      if (isPublic !== undefined) {
+        console.log(`Filtering by isPublic: ${isPublic}`);
+        queryParams.isPublic = isPublic === 'true' || isPublic === '1' ? true : false;
+      }
+      
+      // Process any custom metaproperty filters (parameters with property_ prefix)
+      Object.keys(req.query).forEach(key => {
+        if (key.startsWith('property_')) {
+          console.log(`Filtering by custom metaproperty: ${key}=${req.query[key]}`);
+          queryParams[key] = req.query[key];
+        }
+      });
 
       // Log the request
       console.log(`Getting media list with limit: ${limitValue}, page: ${pageValue}`);
@@ -380,7 +444,7 @@ export const getMediaList = (bynderInstance) => {
 
       // Fetch media items from Bynder
       console.log('Fetching media from Bynder...');
-      const mediaItems = await getAllMediaItems(bynderInstance, limitValue);
+      const mediaItems = await getAllMediaItems(bynderInstance, limitValue, queryParams);
       console.log(`Retrieved ${mediaItems.length} media items`);
 
       // Return success with data

@@ -42,6 +42,16 @@ router.get('/download/:filename', downloadExportedFile);
  * @query   {number} page - Page number for pagination (default: 1)
  * @query   {string} sortBy - Field to sort by (default: 'dateCreated')
  * @query   {string} sortOrder - Sort order ('asc' or 'desc', default: 'desc')
+ * @query   {string} orientation - Filter by orientation (e.g., 'portrait', 'landscape')
+ * @query   {string} dateModifiedOn - Filter by modification date (YYYY-MM-DD format)
+ * @query   {string} dateCreatedOn - Filter by creation date (YYYY-MM-DD format)
+ * @query   {string} ids - Comma-separated list of media IDs to filter by
+ * @query   {string} categoryId - Filter by category ID
+ * @query   {string} brandId - Filter by brand ID
+ * @query   {string} type - Filter by media type (e.g., 'image', 'video', 'document', 'audio', '3d')
+ * @query   {boolean} limited - Filter by limited status (true/false)
+ * @query   {boolean} isPublic - Filter by public status (true/false)
+ * @query   {string} property_[MetapropertyName] - Filter by custom metaproperty value (e.g., property_AssetSubType='Stock Photo')
  * @returns {Object} JSON response with media items
  */
 router.get('/list', (req, res, next) => {
