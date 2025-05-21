@@ -15,6 +15,7 @@ const __dirname = dirname(__filename);
 import mediaRoutes from './routes/mediaRoutes.js';
 import routesRoutes from './routes/routesRoutes.js';
 import metapropertyRoutes from './routes/metapropertyRoutes.js';
+import contentAccessRoutes from './routes/contentAccessRoutes.js';
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'output');
@@ -110,6 +111,7 @@ app.get('/', (req, res) => {
 app.use('/api/media', mediaRoutes);
 app.use('/api/routes', routesRoutes);
 app.use('/api/metaproperties', metapropertyRoutes);
+app.use('/api/content_access', contentAccessRoutes);
 
 // 404 middleware - handle routes that don't exist
 app.use(notFoundHandler);
