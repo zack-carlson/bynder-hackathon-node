@@ -33,7 +33,20 @@ export const createMediaExporter = (bynderInstance) => {
       // Format: <<export-type>>-<<instance>>-<<timestamp>>.xlsx
       const defaultFilename = `media-${instanceSlug}-${Date.now()}.xlsx`;
       
-      const { limit = 1000, filename = defaultFilename } = req.query;
+      // Extract query parameters with defaults
+      const {
+        limit = 1000,
+        filename = defaultFilename,
+        orientation,
+        dateModifiedOn,
+        dateCreatedOn,
+        ids,
+        categoryId,
+        brandId,
+        type,
+        limited,
+        isPublic
+      } = req.query;
 
       // Log the export request
       console.log(`Starting media export with limit: ${limit}`);
@@ -43,9 +56,66 @@ export const createMediaExporter = (bynderInstance) => {
         throw new Error('Bynder SDK not initialized correctly');
       }
 
+      // Create query parameters object for Bynder API
+      const queryParams = {};
+      
+      // Add filters if provided
+      if (orientation) {
+        console.log(`Filtering by orientation: ${orientation}`);
+        queryParams.orientation = orientation;
+      }
+      
+      if (dateModifiedOn) {
+        console.log(`Filtering by dateModifiedOn: ${dateModifiedOn}`);
+        queryParams.dateModifiedOn = dateModifiedOn;
+      }
+      
+      if (dateCreatedOn) {
+        console.log(`Filtering by dateCreatedOn: ${dateCreatedOn}`);
+        queryParams.dateCreatedOn = dateCreatedOn;
+      }
+      
+      if (ids) {
+        console.log(`Filtering by ids: ${ids}`);
+        queryParams.ids = ids; // Comma-separated list of IDs
+      }
+      
+      if (categoryId) {
+        console.log(`Filtering by categoryId: ${categoryId}`);
+        queryParams.categoryId = categoryId;
+      }
+      
+      if (brandId) {
+        console.log(`Filtering by brandId: ${brandId}`);
+        queryParams.brandId = brandId;
+      }
+      
+      if (type) {
+        console.log(`Filtering by type: ${type}`);
+        queryParams.type = type; // image, video, document, audio, 3d
+      }
+      
+      if (limited !== undefined) {
+        console.log(`Filtering by limited: ${limited}`);
+        queryParams.limited = limited === 'true' || limited === '1' ? true : false;
+      }
+      
+      if (isPublic !== undefined) {
+        console.log(`Filtering by isPublic: ${isPublic}`);
+        queryParams.isPublic = isPublic === 'true' || isPublic === '1' ? true : false;
+      }
+      
+      // Process any custom metaproperty filters (parameters with property_ prefix)
+      Object.keys(req.query).forEach(key => {
+        if (key.startsWith('property_')) {
+          console.log(`Filtering by custom metaproperty: ${key}=${req.query[key]}`);
+          queryParams[key] = req.query[key];
+        }
+      });
+
       // Fetch all media from Bynder
       console.log('Fetching media from Bynder...');
-      const mediaItems = await getAllMediaItems(bynderInstance, parseInt(limit));
+      const mediaItems = await getAllMediaItems(bynderInstance, parseInt(limit), queryParams);
       console.log(`Retrieved ${mediaItems.length} media items`);
 
       if (mediaItems.length === 0) {
