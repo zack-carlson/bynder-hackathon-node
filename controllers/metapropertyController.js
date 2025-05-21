@@ -195,8 +195,8 @@ export const exportAllMetaProperties = (bynderInstance) => {
       const metaproperties = await bynderInstance.getMetaproperties({ options, count });
       
       if (!metaproperties || Object.keys(metaproperties).length === 0) {
-        return res.status(404).json(
-          successResponse(null, 'No metaproperties found to export')
+        return res.status(200).json(
+          successResponse(null, 'No data available')
         );
       }
       
@@ -207,17 +207,13 @@ export const exportAllMetaProperties = (bynderInstance) => {
       const filePath = await createMetaPropertiesXLSX(metaproperties, filename);
       console.log(`XLSX file created at: ${filePath}`);
 
-      // Generate download URL
-      const downloadUrl = `/api/media/download/${path.basename(filePath)}`;
-
-      // Return success with download URL
-      return res.status(200).json(
-        successResponse({
-          propertiesCount: Object.keys(metaproperties).length,
-          downloadUrl: downloadUrl,
-          filename: path.basename(filePath)
-        }, 'Metaproperties export completed successfully')
-      );
+      // Set headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
     } catch (error) {
       console.error('Error exporting metaproperties:', error);
       const { response, statusCode } = errorResponse(

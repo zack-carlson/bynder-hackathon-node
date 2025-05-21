@@ -119,8 +119,8 @@ export const createMediaExporter = (bynderInstance) => {
       console.log(`Retrieved ${mediaItems.length} media items`);
 
       if (mediaItems.length === 0) {
-        return res.status(404).json(
-          successResponse(null, 'No media items found to export')
+        return res.status(200).json(
+          successResponse(null, 'No data available')
         );
       }
 
@@ -129,17 +129,13 @@ export const createMediaExporter = (bynderInstance) => {
       const filePath = await createXLSXFile(mediaItems, filename);
       console.log(`XLSX file created at: ${filePath}`);
 
-      // Generate download URL
-      const downloadUrl = `/api/media/download/${path.basename(filePath)}`;
-
-      // Return success with download URL
-      return res.status(200).json(
-        successResponse({
-          totalItems: mediaItems.length,
-          downloadUrl: downloadUrl,
-          filename: path.basename(filePath)
-        }, 'Media export completed successfully')
-      );
+      // Set headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
     } catch (error) {
       console.error('Error exporting media:', error);
       const { response, statusCode } = errorResponse(
@@ -640,8 +636,8 @@ export const exportMetaProperties = (bynderInstance) => {
       const mediaItems = await getAllMediaItems(bynderInstance, 100); // Limit to 100 items for faster processing
       
       if (mediaItems.length === 0) {
-        return res.status(404).json(
-          successResponse(null, 'No media items found to extract meta-properties')
+        return res.status(200).json(
+          successResponse(null, 'No data available')
         );
       }
 
@@ -654,18 +650,13 @@ export const exportMetaProperties = (bynderInstance) => {
       const filePath = await createMetaPropertiesXLSX(properties, propertyOptions, filename);
       console.log(`XLSX file created at: ${filePath}`);
 
-      // Generate download URL
-      const downloadUrl = `/api/media/download/${path.basename(filePath)}`;
-
-      // Return success with download URL
-      return res.status(200).json(
-        successResponse({
-          propertiesCount: Object.keys(properties).length,
-          optionsCount: Object.keys(propertyOptions).length,
-          downloadUrl: downloadUrl,
-          filename: path.basename(filePath)
-        }, 'Meta-properties export completed successfully')
-      );
+      // Set headers for file download
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
     } catch (error) {
       console.error('Error exporting meta-properties:', error);
       const { response, statusCode } = errorResponse(
