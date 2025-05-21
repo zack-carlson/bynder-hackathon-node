@@ -1,5 +1,5 @@
 import express from 'express';
-import { getMetapropertyList } from '../controllers/metapropertyController.js';
+import { getMetapropertyList, exportAllMetaProperties } from '../controllers/metapropertyController.js';
 
 const router = express.Router();
 
@@ -22,6 +22,21 @@ router.get('/list', (req, res, next) => {
 }, (req, res) => {
   const bynderInstance = req.app.locals.bynder;
   return getMetapropertyList(bynderInstance)(req, res);
+});
+
+/**
+ * @route   GET /api/metaproperties/exportAllMetaProperties
+ * @desc    Export all metaproperties and their options to XLSX file
+ * @access  Public
+ * @query   {string} filename - Custom filename for the export
+ * @returns {Object} Response with download URL
+ */
+router.get('/exportAllMetaProperties', (req, res, next) => {
+  req.setTimeout(120000); // Set 2min timeout for potentially long-running exports
+  next();
+}, (req, res) => {
+  const bynderInstance = req.app.locals.bynder;
+  return exportAllMetaProperties(bynderInstance)(req, res);
 });
 
 export default router;

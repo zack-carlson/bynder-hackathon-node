@@ -41,6 +41,56 @@ export const getAllRoutes = (app) => {
               description: 'Sort order (asc or desc)',
               default: 'desc',
               required: false
+            },
+            orientation: {
+              type: 'string',
+              description: 'Filter by orientation (e.g., portrait, landscape)',
+              required: false
+            },
+            dateModifiedOn: {
+              type: 'string',
+              description: 'Filter by modification date (YYYY-MM-DD format)',
+              required: false
+            },
+            dateCreatedOn: {
+              type: 'string',
+              description: 'Filter by creation date (YYYY-MM-DD format)',
+              required: false
+            },
+            ids: {
+              type: 'string',
+              description: 'Comma-separated list of media IDs to filter by',
+              required: false
+            },
+            categoryId: {
+              type: 'string',
+              description: 'Filter by category ID',
+              required: false
+            },
+            brandId: {
+              type: 'string',
+              description: 'Filter by brand ID',
+              required: false
+            },
+            type: {
+              type: 'string',
+              description: 'Filter by media type (e.g., image, video, document, audio, 3d)',
+              required: false
+            },
+            limited: {
+              type: 'boolean',
+              description: 'Filter by limited status',
+              required: false
+            },
+            isPublic: {
+              type: 'boolean',
+              description: 'Filter by public status',
+              required: false
+            },
+            'property_*': {
+              type: 'string',
+              description: 'Filter by custom metaproperty value (e.g., property_AssetSubType=Stock Photo)',
+              required: false
             }
           }
         }
@@ -77,6 +127,56 @@ export const getAllRoutes = (app) => {
               type: 'string',
               description: 'Custom filename for the export',
               required: false
+            },
+            orientation: {
+              type: 'string',
+              description: 'Filter by orientation (e.g., portrait, landscape)',
+              required: false
+            },
+            dateModifiedOn: {
+              type: 'string',
+              description: 'Filter by modification date (YYYY-MM-DD format)',
+              required: false
+            },
+            dateCreatedOn: {
+              type: 'string',
+              description: 'Filter by creation date (YYYY-MM-DD format)',
+              required: false
+            },
+            ids: {
+              type: 'string',
+              description: 'Comma-separated list of media IDs to filter by',
+              required: false
+            },
+            categoryId: {
+              type: 'string',
+              description: 'Filter by category ID',
+              required: false
+            },
+            brandId: {
+              type: 'string',
+              description: 'Filter by brand ID',
+              required: false
+            },
+            type: {
+              type: 'string',
+              description: 'Filter by media type (e.g., image, video, document, audio, 3d)',
+              required: false
+            },
+            limited: {
+              type: 'boolean',
+              description: 'Filter by limited status',
+              required: false
+            },
+            isPublic: {
+              type: 'boolean',
+              description: 'Filter by public status',
+              required: false
+            },
+            'property_*': {
+              type: 'string',
+              description: 'Filter by custom metaproperty value (e.g., property_AssetSubType=Stock Photo)',
+              required: false
             }
           }
         }
@@ -112,6 +212,44 @@ export const getAllRoutes = (app) => {
         }
       });
       
+      // Add Metaproperties endpoints
+      routes.push({
+        path: '/api/metaproperties/list',
+        method: 'GET',
+        description: 'Get all metaproperties from Bynder',
+        parameters: {
+          query: {
+            options: {
+              type: 'number',
+              description: 'Include options (1) or not (0)',
+              default: 1,
+              required: false
+            },
+            count: {
+              type: 'number',
+              description: 'Include count (1) or not (0)',
+              default: 1,
+              required: false
+            }
+          }
+        }
+      });
+      
+      routes.push({
+        path: '/api/metaproperties/exportAllMetaProperties',
+        method: 'GET',
+        description: 'Export all metaproperties and their options to XLSX file with two sheets',
+        parameters: {
+          query: {
+            filename: {
+              type: 'string',
+              description: 'Custom filename for the export',
+              required: false
+            }
+          }
+        }
+      });
+
       routes.push({
         path: '/api/routes',
         method: 'GET',
