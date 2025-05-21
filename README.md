@@ -93,6 +93,21 @@ Base URL: `/api/media`
   - "Meta Properties" sheet containing all meta-property IDs, names, and their possible values
   - "Property Options" sheet containing all options with their parent property references
 
+#### Get meta-properties as JSON
+
+- **URL**: `/api/media/metaproperties`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `limit` (optional): Maximum number of media items to sample for properties (default: 100)
+  - `type` (optional): Filter by asset type (image, document, audio, video, 3d)
+  - `limitedUsage` (optional): Filter by limited usage status (1 for limited, 0 for not limited)
+  - `orientation` (optional): Filter by image orientation (square, portrait, landscape)
+- **Response**: JSON object with properties, options, and counts
+- **Description**: Returns a JSON response containing:
+  - List of all meta-properties with their IDs, names, and possible values
+  - List of all property options with their parent property references
+  - Count of total properties and options found
+
 #### Download exported file
 
 - **URL**: `/api/media/download/:filename`
@@ -131,6 +146,18 @@ curl -X GET "http://localhost:3000/api/media/exportAllMedia?limit=100&filename=m
 
 ```bash
 curl -X GET "http://localhost:3000/api/media/exportMetaProperties?filename=meta-properties.xlsx"
+```
+
+### Get meta-properties as JSON
+
+```bash
+curl -X GET "http://localhost:3000/api/media/metaproperties"
+```
+
+### Get meta-properties filtered by type
+
+```bash
+curl -X GET "http://localhost:3000/api/media/metaproperties?type=image"
 ```
 
 ## Error Handling

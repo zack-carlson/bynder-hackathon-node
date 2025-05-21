@@ -1,5 +1,12 @@
 import express from 'express';
-import { createMediaExporter, downloadExportedFile, getMediaList, getMediaById, exportMetaProperties } from '../controllers/mediaController.js';
+import {
+  createMediaExporter,
+  downloadExportedFile,
+  getMediaList,
+  getMediaById,
+  exportMetaProperties,
+  getMetaPropertiesList
+} from '../controllers/mediaController.js';
 
 const router = express.Router();
 
@@ -72,6 +79,23 @@ router.get('/exportMetaProperties', (req, res, next) => {
 }, (req, res) => {
   const bynderInstance = req.app.locals.bynder;
   return exportMetaProperties(bynderInstance)(req, res);
+});
+
+/**
+ * @route   GET /api/media/metaproperties
+ * @desc    Get meta-properties and their options as JSON
+ * @access  Public
+ * @query   {string} type - Filter media by type before extracting properties
+ * @query   {string} limitedUsage - Filter media by limited usage before extracting properties
+ * @query   {string} orientation - Filter media by orientation before extracting properties
+ * @returns {Object} JSON response with meta-properties and options
+ */
+router.get('/metaproperties', (req, res, next) => {
+  req.setTimeout(120000); // Set 2min timeout for potentially large operations
+  next();
+}, (req, res) => {
+  const bynderInstance = req.app.locals.bynder;
+  return getMetaPropertiesList(bynderInstance)(req, res);
 });
 
 /**

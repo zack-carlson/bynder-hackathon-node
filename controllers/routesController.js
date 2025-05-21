@@ -113,6 +113,37 @@ export const getAllRoutes = (app) => {
       });
       
       routes.push({
+        path: '/api/media/metaproperties',
+        method: 'GET',
+        description: 'Get meta-properties and their options as JSON',
+        parameters: {
+          query: {
+            limit: {
+              type: 'number',
+              description: 'Maximum number of media items to sample for properties',
+              default: 100,
+              required: false
+            },
+            type: {
+              type: 'string',
+              description: 'Filter by asset type (image, document, audio, video, 3d)',
+              required: false
+            },
+            limitedUsage: {
+              type: 'string',
+              description: 'Filter by limited usage status (1 for limited, 0 for not limited)',
+              required: false
+            },
+            orientation: {
+              type: 'string',
+              description: 'Filter by image orientation (square, portrait, landscape)',
+              required: false
+            }
+          }
+        }
+      });
+      
+      routes.push({
         path: '/api/routes',
         method: 'GET',
         description: 'Get information about all available API routes',

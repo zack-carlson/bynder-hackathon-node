@@ -33,10 +33,18 @@ export const createMediaExporter = (bynderInstance) => {
       // Format: <<export-type>>-<<instance>>-<<timestamp>>.xlsx
       const defaultFilename = `media-${instanceSlug}-${Date.now()}.xlsx`;
       
-      const { limit = 1000, filename = defaultFilename } = req.query;
+      // Extract query parameters
+      const { 
+        limit = 1000, 
+        filename = defaultFilename,
+        type,
+        orderBy,
+        limited,
+        orientation
+      } = req.query;
 
       // Log the export request
-      console.log(`Starting media export with limit: ${limit}`);
+      console.log(`Starting media export with parameters: limit=${limit}, type=${type || 'all'}, orientation=${orientation || 'all'}, limited=${limited || 'all'}`);
 
       // Check if Bynder instance is available
       if (!bynderInstance) {
@@ -45,7 +53,16 @@ export const createMediaExporter = (bynderInstance) => {
 
       // Fetch all media from Bynder
       console.log('Fetching media from Bynder...');
-      const mediaItems = await getAllMediaItems(bynderInstance, parseInt(limit));
+      
+      // Call the API
+      const mediaItems = await fetchMediaFromBynder(bynderInstance, {
+        limit: parseInt(limit),
+        type,
+        limited,
+        orientation,
+        orderBy
+      });
+      
       console.log(`Retrieved ${mediaItems.length} media items`);
 
       if (mediaItems.length === 0) {
@@ -120,52 +137,115 @@ export const downloadExportedFile = (req, res) => {
 };
 
 /**
- * Fetch all media items from Bynder, handling pagination
+ * Simplified function to fetch media items from Bynder with pagination
  * @param {Object} bynder - Bynder SDK instance
- * @param {Number} limit - Max number of items to fetch
+ * @param {Object} queryParams - Query parameters for filtering
  * @returns {Promise<Array>} Array of media items
  */
-async function getAllMediaItems(bynder, limit) {
+async function fetchMediaFromBynder(bynder, queryParams) {
   try {
-    // For testing without actual API access, return mock data
-    if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-      return generateMockData(Math.min(limit, 100));
-    }
+    console.log('Fetching media with parameters:', queryParams);
     
+    // Initialize result array
     const allMedia = [];
+    
+    // Set up pagination
     let page = 1;
     let hasMoreItems = true;
     const pageSize = 100; // Max page size for Bynder API
+    const limit = parseInt(queryParams.limit) || 100;
     
+    // Create API query object with Bynder-compatible parameter names
+    const apiQuery = {
+      page,
+      limit: Math.min(pageSize, limit),
+      total: 1, // Get total count for first page
+    };
+    
+    // Add filters using Bynder API parameter names - only if they are valid values
+    if (queryParams.type && queryParams.type !== undefined && queryParams.type !== null && queryParams.type !== '') {
+      apiQuery.type = queryParams.type;
+      console.log(`Adding type filter: ${queryParams.type}`);
+    }
+    
+    if (queryParams.limited && queryParams.limited !== undefined && queryParams.limited !== null && queryParams.limited !== '') {
+      apiQuery.limited = queryParams.limited;
+      console.log(`Adding limited filter: ${queryParams.limited}`);
+    }
+    
+    if (queryParams.orientation && queryParams.orientation !== undefined && queryParams.orientation !== null && queryParams.orientation !== '') {
+      apiQuery.orientation = queryParams.orientation;
+      console.log(`Adding orientation filter: ${queryParams.orientation}`);
+    }
+    
+    if (queryParams.orderBy && queryParams.orderBy !== undefined && queryParams.orderBy !== null && queryParams.orderBy !== '') {
+      apiQuery.orderBy = queryParams.orderBy;
+      console.log(`Adding orderBy: ${queryParams.orderBy}`);
+    }
+    
+    // Final safety check - remove any lingering undefined, null, or empty string values
+    Object.keys(apiQuery).forEach(key => {
+      if (apiQuery[key] === undefined || apiQuery[key] === null || apiQuery[key] === '') {
+        console.log(`Removing empty parameter: ${key}`);
+        delete apiQuery[key];
+      }
+    });
+    
+    console.log('Initial Bynder API query:', apiQuery);
+    
+    // Fetch data with pagination
     while (hasMoreItems && allMedia.length < limit) {
-      const query = {
-        page,
-        limit: Math.min(pageSize, limit - allMedia.length),
-        total: 0 // Set to 0 to avoid counting total (faster)
-      };
+      apiQuery.page = page;
+      apiQuery.limit = Math.min(pageSize, limit - allMedia.length);
       
-      console.log(`Fetching page ${page} with limit ${query.limit}...`);
+      console.log(`Fetching page ${page} with limit ${apiQuery.limit}...`);
       
-      // Get media page from Bynder
-      const mediaPage = await bynder.getMediaList(query);
-      
-      if (!mediaPage || !mediaPage.length) {
-        hasMoreItems = false;
-      } else {
-        allMedia.push(...mediaPage);
-        page++;
+      try {
+        // Do one final check before API call to ensure no undefined values
+        Object.keys(apiQuery).forEach(key => {
+          if (apiQuery[key] === undefined || apiQuery[key] === null || apiQuery[key] === '') {
+            console.log(`Removing undefined parameter before API call: ${key}`);
+            delete apiQuery[key];
+          }
+        });
         
-        // Stop if we've reached the requested limit
-        if (allMedia.length >= limit) {
+        console.log('Clean query sent to Bynder API:', JSON.stringify(apiQuery, null, 2));
+        
+        // Call Bynder API with cleaned parameters
+        const response = await bynder.getMediaList(apiQuery);
+        console.log(`Got response from Bynder API: ${typeof response}`);
+        
+        // Process response
+        if (Array.isArray(response) && response.length > 0) {
+          console.log(`Received ${response.length} items from Bynder API`);
+          allMedia.push(...response);
+          page++;
+          
+          // Check if we need more pages
+          if (allMedia.length >= limit) {
+            hasMoreItems = false;
+          }
+        } else {
+          // No more items
+          console.log('No more items found or empty response');
           hasMoreItems = false;
         }
+      } catch (error) {
+        console.error('Error fetching page from Bynder:', error);
+        hasMoreItems = false;
+      }
+      
+      // After first page, no need for total count
+      if (apiQuery.total === 1) {
+        apiQuery.total = 0;
       }
     }
     
+    console.log(`Fetched a total of ${allMedia.length} media items from Bynder`);
     return allMedia;
   } catch (error) {
-    console.error('Error fetching media from Bynder:', error);
-    throw error;
+    console.error('Error in fetchMediaFromBynder:', error);
+    throw new Error(`Failed to fetch media from Bynder: ${error.message}`);
   }
 }
 
@@ -279,35 +359,6 @@ async function createXLSXFile(mediaItems, filename) {
 }
 
 /**
- * Generate mock media data for testing
- * @param {Number} count - Number of items to generate
- * @returns {Array} Array of mock media items
- */
-function generateMockData(count) {
-  const types = ['image', 'video', 'document', 'audio'];
-  const extensions = ['jpg', 'png', 'pdf', 'mp4', 'docx'];
-  
-  return Array.from({ length: count }, (_, i) => ({
-    id: `mock-id-${i + 1}`,
-    name: `Mock Media ${i + 1}`,
-    description: `This is a mock media item ${i + 1} for testing purposes`,
-    type: types[Math.floor(Math.random() * types.length)],
-    originalUrl: `https://example.com/media/${i + 1}`,
-    thumbnailUrl: `https://example.com/media/${i + 1}/thumbnail`,
-    dateCreated: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
-    dateModified: new Date(Date.now() - Math.random() * 1000000000).toISOString(),
-    width: Math.floor(Math.random() * 2000) + 500,
-    height: Math.floor(Math.random() * 2000) + 500,
-    fileSize: Math.floor(Math.random() * 10000000),
-    extension: extensions[Math.floor(Math.random() * extensions.length)],
-    tags: Array.from(
-      { length: Math.floor(Math.random() * 5) + 1 },
-      (_, j) => `tag-${j + 1}`
-    )
-  }));
-}
-
-/**
  * Format file size from bytes to human-readable format
  * @param {Number} bytes - File size in bytes
  * @returns {String} Formatted file size
@@ -359,29 +410,58 @@ function slugifyDomain(domainUrl) {
 export const getMediaList = (bynderInstance) => {
   return async (req, res) => {
     try {
+      // Log request details
+      console.log('\n======== MEDIA LIST API REQUEST ========');
+      console.log('Query parameters:', req.query);
+      
       // Extract query parameters with defaults
       const { 
         limit = 100, 
         page = 1,
-        sortBy = 'dateCreated',
-        sortOrder = 'desc'
+        type,
+        orderBy,
+        includeMediaItems = '1',
+        limitedUsage,
+        orientation
       } = req.query;
 
-      const limitValue = Math.min(parseInt(limit), 1000); // Cap maximum limit
-      const pageValue = parseInt(page);
-
-      // Log the request
-      console.log(`Getting media list with limit: ${limitValue}, page: ${pageValue}`);
-
+      const limitValue = Math.min(parseInt(limit), 1000);
+      
       // Check if Bynder instance is available
       if (!bynderInstance) {
         throw new Error('Bynder SDK not initialized correctly');
       }
 
-      // Fetch media items from Bynder
-      console.log('Fetching media from Bynder...');
-      const mediaItems = await getAllMediaItems(bynderInstance, limitValue);
-      console.log(`Retrieved ${mediaItems.length} media items`);
+      // Create query parameters object for Bynder API - only add defined values
+      const queryParams = {
+        limit: limitValue,
+        page: parseInt(page) || 1
+      };
+      
+      // Add optional parameters only if they have valid values
+      if (type !== undefined && type !== null && type !== '') {
+        queryParams.type = type;
+      }
+      
+      if (orderBy !== undefined && orderBy !== null && orderBy !== '') {
+        queryParams.orderBy = orderBy;
+      }
+      
+      // Use proper Bynder API parameter name (limited instead of limitedUsage)
+      if (limitedUsage !== undefined && limitedUsage !== null && limitedUsage !== '') {
+        queryParams.limited = limitedUsage;
+      }
+      
+      if (orientation !== undefined && orientation !== null && orientation !== '') {
+        queryParams.orientation = orientation;
+      }
+      
+      console.log('Fetching media with parameters:', queryParams);
+      
+      // Call fetchMediaFromBynder function with the parameters
+      const mediaItems = await fetchMediaFromBynder(bynderInstance, queryParams);
+      
+      console.log(`Retrieved ${mediaItems.length} media items to return to client`);
 
       // Return success with data
       return res.status(200).json(
@@ -425,15 +505,7 @@ export const getMediaById = (bynderInstance) => {
       }
 
       console.log(`Fetching media item with ID: ${id}`);
-
-      // For development with mock data
-      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_DATA === 'true') {
-        const mockItem = generateMockData(1)[0];
-        mockItem.id = id;
-        return res.status(200).json(successResponse(mockItem, 'Media item retrieved successfully'));
-      }
       
-      // Make API call to get single media item
       try {
         // Using the Bynder SDK to get media info, targeting the /media/v7/{id} endpoint
         const mediaItem = await bynderInstance.getMediaInfo({ id });
@@ -477,6 +549,90 @@ export const getMediaById = (bynderInstance) => {
 };
 
 /**
+ * Get meta-properties list as JSON
+ * @param {Object} bynderInstance - Initialized Bynder SDK instance
+ * @returns {Function} Express middleware function
+ */
+export const getMetaPropertiesList = (bynderInstance) => {
+  return async (req, res) => {
+    try {
+      // Log request details
+      console.log('\n======== META PROPERTIES LIST REQUEST ========');
+      console.log('Query parameters:', req.query);
+      
+      // Extract query parameters
+      const { 
+        limit = 100,
+        type, 
+        limitedUsage, 
+        orientation 
+      } = req.query;
+      
+      // Check if Bynder instance is available
+      if (!bynderInstance) {
+        throw new Error('Bynder SDK not initialized correctly');
+      }
+
+      // Create query parameters for fetching media
+      const queryParams = {
+        limit: parseInt(limit)
+      };
+      
+      // Only add parameters that have valid values
+      if (type && type !== '') {
+        queryParams.type = type;
+      }
+      
+      // Convert limitedUsage to limited as per Bynder API
+      if (limitedUsage && limitedUsage !== '') {
+        queryParams.limited = limitedUsage;
+      }
+      
+      if (orientation && orientation !== '') {
+        queryParams.orientation = orientation;
+      }
+      
+      // Fetch media items to extract meta-properties
+      console.log('Fetching media to extract meta-properties...');
+      const mediaItems = await fetchMediaFromBynder(bynderInstance, queryParams);
+      
+      if (mediaItems.length === 0) {
+        return res.status(404).json(
+          successResponse(null, 'No media items found to extract meta-properties')
+        );
+      }
+      
+      // Extract and organize meta-properties
+      console.log('Extracting meta-properties...');
+      const { properties, propertyOptions } = extractMetaProperties(mediaItems);
+      
+      // Format response
+      const response = {
+        properties: Object.values(properties),
+        propertyOptions: Object.values(propertyOptions),
+        totalProperties: Object.keys(properties).length,
+        totalOptions: Object.keys(propertyOptions).length,
+        mediaItemsSampled: mediaItems.length
+      };
+      
+      // Return success with meta-properties data
+      return res.status(200).json(
+        successResponse(response, 'Meta-properties retrieved successfully')
+      );
+    } catch (error) {
+      console.error('Error getting meta-properties:', error);
+      const { response, statusCode } = errorResponse(
+        error.message || 'Failed to retrieve meta-property data',
+        'META_PROPERTY_LIST_ERROR',
+        500,
+        error
+      );
+      return res.status(statusCode).json(response);
+    }
+  };
+};
+
+/**
  * Export meta-properties and their options to XLSX
  * @param {Object} bynderInstance - Initialized Bynder SDK instance
  * @returns {Function} Express middleware function
@@ -491,29 +647,60 @@ export const exportMetaProperties = (bynderInstance) => {
       // Format: <<export-type>>-<<instance>>-<<timestamp>>.xlsx
       const defaultFilename = `meta-properties-${instanceSlug}-${Date.now()}.xlsx`;
       
-      const { filename = defaultFilename } = req.query;
-
-      // Log the export request
-      console.log(`Starting meta-properties export`);
+      const {
+        filename = defaultFilename,
+        type,
+        limitedUsage,
+        orientation
+      } = req.query;
+      
+      // Enhanced debug logging
+      console.log('\n======== META PROPERTIES EXPORT REQUEST ========');
+      console.log('Query parameters:', req.query);
+      console.log('================================================');
 
       // Check if Bynder instance is available
       if (!bynderInstance) {
         throw new Error('Bynder SDK not initialized correctly');
       }
 
-      // Fetch all media from Bynder to extract meta-properties
-      console.log('Fetching media to extract meta-properties...');
-      const mediaItems = await getAllMediaItems(bynderInstance, 100); // Limit to 100 items for faster processing
+      // Create query parameters using correct Bynder parameter names
+      const queryParams = {
+        limit: 100 // Limit to 100 items for faster processing
+      };
       
+      // Only add parameters that have valid values
+      if (type !== undefined && type !== null && type !== '') {
+        queryParams.type = type;
+      }
+      
+      // Convert limitedUsage to limited as per Bynder API
+      if (limitedUsage !== undefined && limitedUsage !== null && limitedUsage !== '') {
+        queryParams.limited = limitedUsage;
+      }
+      
+      if (orientation !== undefined && orientation !== null && orientation !== '') {
+        queryParams.orientation = orientation;
+      }
+      
+      // Fetch media with filters
+      console.log('Fetching media to extract meta-properties with parameters:', queryParams);
+      const mediaItems = await fetchMediaFromBynder(bynderInstance, queryParams);
+      
+      console.log(`Retrieved ${mediaItems.length} media items for meta-property extraction`);
+
       if (mediaItems.length === 0) {
+        console.log('No media items found to extract meta-properties');
         return res.status(404).json(
           successResponse(null, 'No media items found to extract meta-properties')
         );
       }
-
+      
       // Extract and organize meta-properties
       console.log('Extracting meta-properties...');
       const { properties, propertyOptions } = extractMetaProperties(mediaItems);
+      
+      console.log(`Extracted ${Object.keys(properties).length} meta-properties and ${Object.keys(propertyOptions).length} property options`);
       
       // Convert to XLSX and save file
       console.log('Converting to XLSX format...');
